@@ -1,0 +1,26 @@
+name: build-base-image
+
+on:
+  push:
+    path:
+      - 'dev-sec-ops/base-images/**'
+
+jobs:
+  build-base-image:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Build base image
+        run: docker build -t ${{ secrets.DOCKER_REGISTRY_USER }}/license-finder:latest -f dev-sec-ops/base-images/license-finder .
+
+      - name: Log in to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_REGISTRY_USER }}
+          password: ${{ secrets.DOCKER_REGISTRY_PAT }}
+
+      - name: Push the Docker image
+        run: docker push ${{ secrets.DOCKER_REGISTRY_USER }}/license-finder:latest
