@@ -1,0 +1,91 @@
+You are a retrieval-pipeline auditor. Analyze the attached traces and
+eval results and produce a prioritized improvement plan.
+
+For each trace you have: query, intent JSON, pool sizes, fused list,
+rerank output, packed context, final answer, citations, user feedback,
+stage latencies, token counts.
+
+Diagnose in this order and give evidence for each finding:
+
+A. GROUNDING FAILURES
+   - answers containing claims with no citation
+   - citations that don't resolve or aren't current
+   - cases where correct evidence WAS retrieved but not used
+     (retrieved-but-unused = a packing or synthesis problem, not retrieval)
+
+B. RETRIEVAL FAILURES — separate recall from precision
+   - correct chunk absent from the pre-rerank pool → RECALL problem
+     (fix: pool size, query expansion, fusion weights, chunking)
+   - correct chunk in pool but not in rerank output → PRECISION problem
+     (fix: reranker model, rerank_in/out ratio)
+   - report the split as a percentage; they need different fixes
+
+C. CONTEXT UTILIZATION
+   - how often did packing degrade or drop items?
+   - is any single source dominating the context (cap breach)?
+   - correlation between evidence-token count and answer accuracy —
+     find the point of diminishing returns; recommend a budget
+   - redundancy: fraction of packed items that are near-duplicates
+
+D. ROUTING
+   - misroute rate by role and by domain
+   - queries that clarified but shouldn't have (over-clarification)
+   - queries answered that should have declined
+
+E. PARAMETERS
+   Recommend specific values with justification from the data:
+   doc_pool, code_pool, rerank_in, rerank_out, evidence_tokens,
+   per_source_cap, mmr_diversity, temperature per stage, fusion weights
+   per query type. State the expected effect and how to verify it.
+
+OUTPUT: a ranked list. Each item: finding, evidence (trace IDs), root
+cause, proposed change, expected impact, and the metric that would
+confirm it worked. Rank by (accuracy gain × affected traffic) / effort.
+Do not propose changes you cannot justify from the traces provided.
+
+
+Review the attached comparison between our tool and the competitor tool.
+The key confound: ours runs on a smaller/lower-tier model; theirs runs on
+a frontier model. Do not accept "their model is better" as an explanation
+for any gap — isolate root cause instead.
+
+For every difference noted, classify it as ONE of:
+  (a) MODEL-CAPABILITY gap — genuinely requires stronger reasoning/coherence
+  (b) ARCHITECTURE gap — caused by retrieval quality, context packing,
+      prompt structure, grounding, or tool-use design, not model size
+  (c) EVALUATION artifact — different prompts/data/settings, not a real gap
+
+For every (b) finding, give a concrete architectural fix (retrieval depth,
+reranking, chunking, structured constraints, verification pass, tool-use
+scaffolding) that would close the gap WITHOUT changing the model — smaller
+models with better grounding routinely beat frontier models with weak
+retrieval on domain-specific tasks.
+
+For every (a) finding, state the minimum model tier that would actually
+close it, and whether a cheaper compensating technique exists.
+
+Output: a table — Finding | Category | Evidence | Fix | Expected effect.
+Rank by (impact × ease). Do not speculate beyond the evidence provided.
+
+Review this multi-agent system for latency and accuracy together — never
+recommend a speed change without stating its accuracy impact, or vice versa.
+
+Check, in order of typical impact: (1) LLM turn count — can steps collapse
+or run in parallel instead of sequentially; (2) uncached repeated work —
+prompts, retrieval results, routing decisions; (3) model tier per step —
+is a frontier model used where a small one would do, or a small one used
+where accuracy actually needs more; (4) retrieval/reflection bounds — pool
+sizes, rerank depth, max reflection loops, and whether confidence-based
+early exit is used; (5) anything computed per-query that could be
+precomputed once at ingest; (6) unbounded timeouts on slow dependencies;
+(7) streaming/progress feedback vs. silent waits.
+
+For each finding: current behavior, evidence, proposed change, expected
+latency delta, expected accuracy delta, and how to verify both before
+shipping. Rank by (combined impact × ease). Flag anything you cannot
+verify from the evidence given rather than guessing.
+
+
+
+
+
